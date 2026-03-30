@@ -3,11 +3,17 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.routing import Mount
 
 from src.agent_registry import registry
+from src.mcp_server import mcp, register_agent_tools
 from src.openrouter_client import OpenRouterClient
 from src.routes import router
 from src.settings import settings
+
+
+# Build MCP sub-app early so session_manager is initialized
+mcp_http_app = mcp.streamable_http_app()
 
 
 @asynccontextmanager
@@ -19,10 +25,16 @@ async def lifespan(app: FastAPI):
         app_referer=settings.app_referer,
     )
     app.state.openrouter_client = client
+    register_agent_tools(app)
     print(f"Loaded {len(registry.list_all())} agents")
     for a in registry.list_all():
         print(f"  [{a.id}] {a.name} → {a.model}")
-    yield
+
+    # Start MCP session manager inside the app lifespan
+    async with mcp.session_manager.run():
+        print("MCP endpoint ready at /mcp")
+        yield
+
     await client.close()
 
 
@@ -36,6 +48,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.routes.append(Mount("/mcp", app=mcp_http_app))
 
 
 def main():

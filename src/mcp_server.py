@@ -1,60 +1,45 @@
-"""MCP server that exposes agent-orchestrator agents as Claude Code tools."""
+"""MCP server mounted inside the FastAPI app at /mcp."""
 
-import json
-import sys
-
-import httpx
 from mcp.server.fastmcp import FastMCP
 
-ORCHESTRATOR_URL = "http://localhost:8000"
+from src.agent_registry import registry
+from src.models import Message
 
-mcp = FastMCP("agent-orchestrator")
+
+mcp = FastMCP("agent-orchestrator", stateless_http=True)
+mcp.settings.streamable_http_path = "/"
 
 
-def _make_tool(agent_id: str, name: str, description: str, model: str):
-    """Dynamically register an MCP tool for an agent."""
+def register_agent_tools(app) -> None:
+    """Register one MCP tool per agent. Call after registry.load()."""
+    for agent in registry.list_all():
+        _make_tool(agent.id, agent.description, agent.model, app)
 
-    @mcp.tool(name=f"ask_{agent_id.replace('-', '_')}", description=f"{description} (model: {model})")
+
+def _make_tool(agent_id: str, description: str, model: str, app):
+    tool_name = f"ask_{agent_id.replace('-', '_')}"
+    bound_id = agent_id  # capture in closure
+
     async def tool_fn(message: str) -> str:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{ORCHESTRATOR_URL}/agents/{agent_id}/run",
-                json={"messages": [{"role": "user", "content": message}]},
-            )
-            if resp.status_code != 200:
-                return f"Error {resp.status_code}: {resp.text}"
-            data = resp.json()
-            choices = data.get("choices", [])
-            if not choices:
-                return "No response from model"
-            content = choices[0].get("message", {}).get("content", "")
-            tokens = data.get("usage", {}).get("total_tokens", "?")
-            return f"{content}\n\n---\n_Agent: {agent_id} | Model: {data.get('model', '?')} | Tokens: {tokens}_"
+        agent = registry.get(bound_id)
+        if not agent:
+            return f"Agent '{bound_id}' not found"
 
+        client = app.state.openrouter_client
+        messages = [Message(role="user", content=message)]
+
+        try:
+            raw = await client.complete(agent, messages)
+        except Exception as e:
+            return f"Error calling {bound_id}: {e}"
+
+        choices = raw.get("choices", [])
+        if not choices:
+            return "No response from model"
+
+        content = choices[0].get("message", {}).get("content", "")
+        tokens = raw.get("usage", {}).get("total_tokens", "?")
+        return f"{content}\n\n---\n_Agent: {bound_id} | Model: {raw.get('model', '?')} | Tokens: {tokens}_"
+
+    mcp.add_tool(tool_fn, name=tool_name, description=f"{description} (model: {model})")
     return tool_fn
-
-
-def _register_agents():
-    """Fetch agents from orchestrator and register each as a tool."""
-    try:
-        resp = httpx.get(f"{ORCHESTRATOR_URL}/agents", timeout=5.0)
-        resp.raise_for_status()
-        agents = resp.json()
-    except Exception as e:
-        print(f"Warning: Could not fetch agents from {ORCHESTRATOR_URL}: {e}", file=sys.stderr)
-        return
-
-    for agent in agents:
-        _make_tool(
-            agent_id=agent["id"],
-            name=agent["name"],
-            description=agent["description"],
-            model=agent["model"],
-        )
-    print(f"Registered {len(agents)} agent tools", file=sys.stderr)
-
-
-_register_agents()
-
-if __name__ == "__main__":
-    mcp.run()
