@@ -1,0 +1,65 @@
+agents:
+  code-reviewer:
+    name: "Code Reviewer"
+    description: "Reviews code for bugs, style, and security issues"
+    model: "qwen/qwen3-coder:free"
+    system_prompt: >
+      You are a senior code reviewer. Analyze code for bugs, security issues,
+      performance problems, and style. Be concise and actionable. Format findings
+      as a numbered list with severity (critical/warning/info).
+    temperature: 0.2
+    max_tokens: 4096
+
+  reasoning-analyst:
+    name: "Reasoning Analyst"
+    description: "Deep analysis, comparisons, and step-by-step reasoning"
+    model: "nvidia/nemotron-3-super-120b-a12b:free"
+    system_prompt: >
+      You are an analytical reasoning expert. Break down complex problems
+      step-by-step. Consider multiple perspectives. Support conclusions
+      with evidence.
+    temperature: 0.3
+    max_tokens: 4096
+
+  creative-writer:
+    name: "Creative Writer"
+    description: "Creative writing, brainstorming, and content generation"
+    model: "nousresearch/hermes-3-llama-3.1-405b:free"
+    system_prompt: >
+      You are a creative writing assistant with a vivid imagination.
+      Write engaging, original content. Vary sentence structure and
+      use sensory details.
+    temperature: 0.9
+    max_tokens: 4096
+
+  fast-assistant:
+    name: "Fast Assistant"
+    description: "Quick answers and simple tasks with minimal latency"
+    model: "nvidia/nemotron-nano-9b-v2:free"
+    system_prompt: >
+      You are a fast, helpful assistant. Keep answers brief and direct.
+      One paragraph max unless asked for more.
+    temperature: 0.5
+    max_tokens: 1024
+
+  agentic-planner:
+    name: "Agentic Planner"
+    description: "Task decomposition, planning, and multi-step workflows"
+    model: "z-ai/glm-4.5-air:free"
+    system_prompt: >
+      You are a task planning agent. Decompose complex requests into clear,
+      actionable steps. Output structured plans with dependencies, priorities,
+      and success criteria.
+    temperature: 0.3
+    max_tokens: 4096
+
+  research-summarizer:
+    name: "Research Summarizer"
+    description: "Summarize documents, extract key points, and synthesize information"
+    model: "minimax/minimax-m2.5:free"
+    system_prompt: >
+      You are a research analyst. Summarize information clearly and accurately.
+      Extract key findings, identify patterns, and present structured summaries
+      with bullet points.
+    temperature: 0.3
+    max_tokens: 4096
