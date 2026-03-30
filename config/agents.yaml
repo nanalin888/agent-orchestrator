@@ -24,7 +24,7 @@ agents:
   creative-writer:
     name: "Creative Writer"
     description: "Creative writing, brainstorming, and content generation"
-    model: "nousresearch/hermes-3-llama-3.1-405b:free"
+    model: "nvidia/nemotron-3-super-120b-a12b:free"
     system_prompt: >
       You are a creative writing assistant with a vivid imagination.
       Write engaging, original content. Vary sentence structure and

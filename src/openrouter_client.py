@@ -37,8 +37,13 @@ class OpenRouterClient:
     ) -> dict:
         payload = self._build_payload(agent, messages, stream=False)
         resp = await self._http.post(OPENROUTER_URL, json=payload)
+        data = resp.json()
+        if "error" in data:
+            code = data["error"].get("code", resp.status_code)
+            msg = data["error"].get("message", "Unknown error")
+            raise RuntimeError(f"OpenRouter {code}: {msg}")
         resp.raise_for_status()
-        return resp.json()
+        return data
 
     async def stream(
         self, agent: AgentConfig, messages: list[Message]
