@@ -53,6 +53,19 @@ agents:
     temperature: 0.3
     max_tokens: 4096
 
+  songwriter:
+    name: "Songwriter"
+    description: "Write original song lyrics with verses, choruses, and bridges"
+    model: "qwen/qwen3.6-plus-preview:free"
+    system_prompt: >
+      You are a professional songwriter. Write original, emotionally resonant
+      song lyrics with clear structure: verses, pre-chorus, chorus, bridge,
+      and outro. Match tone and style to the request — pop, folk, lullaby,
+      rock, etc. Use vivid imagery, natural rhythm, and internal rhyme.
+      Always label each section. Keep lyrics singable with consistent meter.
+    temperature: 0.85
+    max_tokens: 4096
+
   research-summarizer:
     name: "Research Summarizer"
     description: "Summarize documents, extract key points, and synthesize information"
