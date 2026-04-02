@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Orchestrator</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #1c2128;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-muted: #8b949e;
+  --accent: #58a6ff;
+  --accent-dim: #1f6feb;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --orange: #db6d28;
+  --sidebar-w: 280px;
+  --header-h: 52px;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  overflow: hidden;
+}
+
+/* --- Sidebar --- */
+.sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-header .logo {
+  width: 20px; height: 20px;
+  background: var(--accent);
+  border-radius: 4px;
+}
+
+.agent-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.agent-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+  transition: background 0.15s;
+}
+
+.agent-item:hover { background: var(--bg-tertiary); }
+.agent-item.active { background: var(--accent-dim); }
+
+.agent-item .status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+}
+.agent-item .status-dot.ok { background: var(--green); }
+.agent-item .status-dot.error { background: var(--red); }
+.agent-item .status-dot.checking { background: var(--yellow); animation: pulse 1s infinite; }
+.agent-item .status-dot.skip { background: var(--orange); }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.agent-item-info { min-width: 0; }
+.agent-item-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-item-model { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.agent-item .badge {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* --- Main panel --- */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-width: 0;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  padding: 0 16px;
+}
+
+.tab {
+  padding: 12px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+.tab-content { flex: 1; overflow: hidden; display: none; }
+.tab-content.active { display: flex; flex-direction: column; }
+
+/* --- Chat --- */
+.chat-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-header-name { font-size: 15px; font-weight: 600; }
+.chat-header-desc { font-size: 12px; color: var(--text-muted); }
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message.user {
+  align-self: flex-end;
+  background: var(--accent-dim);
+  border-bottom-right-radius: 4px;
+}
+
+.message.assistant {
+  align-self: flex-start;
+  background: var(--bg-tertiary);
+  border-bottom-left-radius: 4px;
+  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 13px;
+}
+
+.message.assistant .meta {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+}
+
+.chat-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 40px;
+}
+
+.chat-input-area {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-secondary);
+  display: flex;
+  gap: 8px;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  resize: none;
+  outline: none;
+  min-height: 42px;
+  max-height: 120px;
+}
+.chat-input:focus { border-color: var(--accent); }
+.chat-input::placeholder { color: var(--text-muted); }
+
+.send-btn {
+  padding: 10px 20px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.send-btn:hover { background: var(--accent); color: #fff; }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  align-self: flex-start;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.typing-indicator .dots span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typing 1.4s infinite;
+}
+.typing-indicator .dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator .dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-4px); }
+}
+
+/* --- Dashboard --- */
+.dashboard {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.dashboard-header h2 { font-size: 18px; font-weight: 600; }
+
+.refresh-btn {
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.refresh-btn:hover { background: var(--border); }
+.refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.health-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  transition: border-color 0.15s;
+}
+.health-card:hover { border-color: var(--text-muted); }
+
+.health-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.health-card-header .status-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.health-card-header .status-dot.ok { background: var(--green); }
+.health-card-header .status-dot.error { background: var(--red); }
+.health-card-header .status-dot.checking { background: var(--yellow); animation: pulse 1s infinite; }
+.health-card-header .status-dot.skip { background: var(--orange); }
+
+.health-card-name { font-size: 14px; font-weight: 600; }
+.health-card-model { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; font-family: monospace; }
+.health-card-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; }
+
+.health-card-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+}
+
+.stat-label { color: var(--text-muted); }
+.stat-value { font-weight: 600; margin-left: 4px; }
+.stat-value.ok { color: var(--green); }
+.stat-value.error { color: var(--red); }
+
+.health-card-error {
+  margin-top: 8px;
+  padding: 8px;
+  background: rgba(248, 81, 73, 0.1);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--red);
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.latency-bar {
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.latency-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+/* --- Audio player --- */
+.audio-result {
+  margin-top: 12px;
+}
+.audio-result audio {
+  width: 100%;
+  height: 36px;
+}
+
+/* --- Rate limit banner --- */
+.rate-limit-banner {
+  background: rgba(210, 153, 34, 0.12);
+  border: 1px solid var(--yellow);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 12px 20px 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.rate-limit-banner .rl-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.rate-limit-banner .rl-body { min-width: 0; }
+.rate-limit-banner .rl-title {
+  font-weight: 600;
+  color: var(--yellow);
+  margin-bottom: 4px;
+}
+.rate-limit-banner .rl-detail { color: var(--text-muted); }
+.rate-limit-banner .rl-reset {
+  font-weight: 600;
+  color: var(--text);
+}
+.rate-limit-banner .rl-dismiss {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.rate-limit-banner .rl-dismiss:hover { color: var(--text); }
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+}
+
+/* --- Scrollbar --- */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo"></div>
+    Agent Orchestrator
+  </div>
+  <div class="agent-list" id="agentList"></div>
+</div>
+
+<div class="main">
+  <div class="tabs">
+    <div class="tab active" data-tab="chat" onclick="switchTab('chat')">Chat</div>
+    <div class="tab" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</div>
+  </div>
+
+  <!-- Chat Tab -->
+  <div class="tab-content active" id="chatTab">
+    <div class="chat-header" id="chatHeader" style="display:none">
+      <div>
+        <div class="chat-header-name" id="chatAgentName"></div>
+        <div class="chat-header-desc" id="chatAgentDesc"></div>
+      </div>
+    </div>
+    <div id="rateLimitBanner"></div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-empty">Select an agent from the sidebar to start chatting</div>
+    </div>
+    <div class="chat-input-area">
+      <textarea class="chat-input" id="chatInput" placeholder="Type a message..." rows="1"
+        onkeydown="handleInputKey(event)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+    </div>
+  </div>
+
+  <!-- Dashboard Tab -->
+  <div class="tab-content" id="dashboardTab">
+    <div class="dashboard">
+      <div class="dashboard-header">
+        <h2>Model Availability</h2>
+        <button class="refresh-btn" id="refreshBtn" onclick="refreshHealth(true)">Refresh All</button>
+      </div>
+      <div class="dashboard-grid" id="dashboardGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+
+// State
+let agents = [];
+let healthData = {};
+let selectedAgent = null;
+let chatHistories = {}; // agentId -> [{role, content}]
+let isStreaming = false;
+let healthInterval = null;
+
+// --- Init ---
+async function init() {
+  await fetchAgents();
+  renderAgentList();
+  // Don't auto-run health checks on load to preserve rate limits.
+  // Health checks run when Dashboard tab is opened or Refresh clicked.
+}
+
+// --- Agents ---
+async function fetchAgents() {
+  try {
+    const res = await fetch(`${API}/agents`);
+    agents = await res.json();
+  } catch (e) {
+    console.error('Failed to fetch agents:', e);
+  }
+}
+
+function renderAgentList() {
+  const list = document.getElementById('agentList');
+  list.innerHTML = agents.map(a => {
+    const health = healthData[a.id];
+    const statusClass = health ? health.status : '';
+    const isActive = selectedAgent && selectedAgent.id === a.id;
+    return `
+      <div class="agent-item ${isActive ? 'active' : ''}" onclick="selectAgent('${a.id}')">
+        <div class="status-dot ${statusClass}"></div>
+        <div class="agent-item-info">
+          <div class="agent-item-name">${esc(a.name)}</div>
+          <div class="agent-item-model">${esc(a.model)}</div>
+        </div>
+        ${a.audio ? '<span class="badge">audio</span>' : ''}
+      </div>`;
+  }).join('');
+}
+
+function selectAgent(id) {
+  selectedAgent = agents.find(a => a.id === id);
+  if (!selectedAgent) return;
+
+  renderAgentList();
+
+  document.getElementById('chatHeader').style.display = '';
+  document.getElementById('chatAgentName').textContent = selectedAgent.name;
+  document.getElementById('chatAgentDesc').textContent = `${selectedAgent.description} | ${selectedAgent.model}`;
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('chatInput').focus();
+
+  renderChat();
+}
+
+// --- Chat ---
+function renderChat() {
+  const el = document.getElementById('chatMessages');
+  if (!selectedAgent) {
+    el.innerHTML = '<div class="chat-empty">Select an agent from the sidebar to start chatting</div>';
+    return;
+  }
+
+  const history = chatHistories[selectedAgent.id] || [];
+  if (history.length === 0) {
+    el.innerHTML = `<div class="chat-empty">Start a conversation with ${esc(selectedAgent.name)}</div>`;
+    return;
+  }
+
+  el.innerHTML = history.map((m, i) => {
+    let extra = '';
+    if (m.audio_url) {
+      extra = `<div class="audio-result"><audio controls src="${esc(m.audio_url)}"></audio></div>`;
+    }
+    if (m.meta) {
+      extra += `<div class="meta">${esc(m.meta)}</div>`;
+    }
+    return `<div class="message ${m.role}">${esc(m.content)}${extra}</div>`;
+  }).join('');
+
+  el.scrollTop = el.scrollHeight;
+}
+
+function handleInputKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+  // Auto-resize textarea
+  const ta = e.target;
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+}
+
+async function sendMessage() {
+  if (!selectedAgent || isStreaming) return;
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  if (!chatHistories[selectedAgent.id]) chatHistories[selectedAgent.id] = [];
+  const history = chatHistories[selectedAgent.id];
+  history.push({ role: 'user', content: text });
+  renderChat();
+
+  // Determine if audio agent
+  if (selectedAgent.audio) {
+    await sendMusicRequest(text);
+    return;
+  }
+
+  // Build messages for API (include history for context)
+  const messages = history
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({ role: m.role, content: m.content }));
+
+  isStreaming = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  // Show typing indicator
+  const messagesEl = document.getElementById('chatMessages');
+  const typingEl = document.createElement('div');
+  typingEl.className = 'typing-indicator';
+  typingEl.innerHTML = `<span class="dots"><span></span><span></span><span></span></span> ${esc(selectedAgent.name)} is thinking...`;
+  messagesEl.appendChild(typingEl);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  // Add placeholder for assistant response (hidden until first content)
+  history.push({ role: 'assistant', content: '' });
+  let gotContent = false;
+
+  try {
+    const res = await fetch(`${API}/agents/${selectedAgent.id}/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages, stream: true }),
+    });
+
+    if (!res.ok) {
+      typingEl.remove();
+      const err = await res.text();
+      history[history.length - 1].content = `Error: ${err}`;
+      renderChat();
+      // Detect rate limit from backend error message
+      if (err.includes('429') || err.toLowerCase().includes('rate limit')) {
+        showRateLimitBanner({ code: 429, message: err, metadata: {} });
+      }
+      isStreaming = false;
+      document.getElementById('sendBtn').disabled = false;
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.content) {
+            if (!gotContent) { gotContent = true; typingEl.remove(); }
+            history[history.length - 1].content += parsed.content;
+            renderChat();
+          }
+          if (parsed.error) {
+            typingEl.remove();
+            const errMsg = parsed.error.message || JSON.stringify(parsed.error);
+            history[history.length - 1].content = `Error: ${errMsg}`;
+            renderChat();
+            if (parsed.error.code === 429 || (parsed.error.message && parsed.error.message.includes('Rate limit'))) {
+              showRateLimitBanner(parsed.error);
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {
+    typingEl.remove();
+    history[history.length - 1].content = `Network error: ${e.message}`;
+    renderChat();
+  } finally {
+    typingEl.remove();
+    // If we never got content and the placeholder is empty, show a timeout message
+    if (!gotContent && history[history.length - 1].content === '') {
+      history[history.length - 1].content = 'No response received. The model may be slow or rate-limited. Try again.';
+      renderChat();
+    }
+    isStreaming = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
+
+async function sendMusicRequest(prompt) {
+  const history = chatHistories[selectedAgent.id];
+  history.push({ role: 'assistant', content: 'Generating music... (this may take a minute)' });
+  renderChat();
+
+  isStreaming = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  try {
+    const res = await fetch(`${API}/agents/${selectedAgent.id}/generate-music`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      history[history.length - 1].content = `Error: ${err}`;
+      renderChat();
+      if (err.includes('429') || err.toLowerCase().includes('rate limit')) {
+        showRateLimitBanner({ code: 429, message: err, metadata: {} });
+      }
+      return;
+    }
+
+    const data = await res.json();
+    history[history.length - 1] = {
+      role: 'assistant',
+      content: data.caption || 'Music generated!',
+      audio_url: data.audio_url,
+      meta: `${data.model} | ${(data.audio_size_bytes / 1024).toFixed(0)} KB`,
+    };
+    renderChat();
+  } catch (e) {
+    history[history.length - 1].content = `Error: ${e.message}`;
+    renderChat();
+  } finally {
+    isStreaming = false;
+    document.getElementById('sendBtn').disabled = false;
+  }
+}
+
+// --- Dashboard ---
+async function fetchHealth(force = false) {
+  try {
+    const url = `${API}/agents/health${force ? '?force=true' : ''}`;
+    const res = await fetch(url);
+    const results = await res.json();
+    for (const r of results) {
+      healthData[r.agent_id] = r;
+    }
+    renderAgentList();
+    renderDashboard();
+  } catch (e) {
+    console.error('Health check failed:', e);
+  }
+}
+
+async function refreshHealth(force) {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = 'Checking...';
+  await fetchHealth(force);
+  btn.disabled = false;
+  btn.textContent = 'Refresh All';
+}
+
+function renderDashboard() {
+  const grid = document.getElementById('dashboardGrid');
+  grid.innerHTML = agents.map(a => {
+    const h = healthData[a.id];
+    const status = h ? h.status : 'unknown';
+    const latency = h ? h.latency_ms : 0;
+    const error = h ? h.error : null;
+    const checked = h && h.checked_at ? new Date(h.checked_at).toLocaleTimeString() : 'never';
+
+    // Latency bar: cap at 15000ms
+    const barWidth = Math.min(latency / 15000 * 100, 100);
+    let barColor = 'var(--green)';
+    if (latency > 5000) barColor = 'var(--yellow)';
+    if (latency > 10000 || status === 'error') barColor = 'var(--red)';
+
+    return `
+      <div class="health-card">
+        <div class="health-card-header">
+          <div class="status-dot ${status}"></div>
+          <div class="health-card-name">${esc(a.name)}</div>
+        </div>
+        <div class="health-card-model">${esc(a.model)}</div>
+        <div class="health-card-desc">${esc(a.description)}</div>
+        <div class="health-card-stats">
+          <span>
+            <span class="stat-label">Status:</span>
+            <span class="stat-value ${status}">${status.toUpperCase()}</span>
+          </span>
+          <span>
+            <span class="stat-label">Latency:</span>
+            <span class="stat-value">${latency > 0 ? latency + 'ms' : '---'}</span>
+          </span>
+          <span>
+            <span class="stat-label">Checked:</span>
+            <span class="stat-value">${checked}</span>
+          </span>
+        </div>
+        <div class="latency-bar">
+          <div class="latency-bar-fill" style="width:${barWidth}%;background:${barColor}"></div>
+        </div>
+        ${error ? `<div class="health-card-error">${esc(error)}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// --- Tabs ---
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('chatTab').classList.toggle('active', tab === 'chat');
+  document.getElementById('dashboardTab').classList.toggle('active', tab === 'dashboard');
+  if (tab === 'dashboard') {
+    fetchHealth();
+    // Start auto-refresh when on dashboard
+    if (!healthInterval) healthInterval = setInterval(() => fetchHealth(), 60000);
+  } else {
+    // Stop polling when leaving dashboard
+    if (healthInterval) { clearInterval(healthInterval); healthInterval = null; }
+  }
+}
+
+// --- Rate Limit ---
+function showRateLimitBanner(error) {
+  const container = document.getElementById('rateLimitBanner');
+  let resetText = '';
+
+  // Try to extract reset timestamp from metadata
+  const meta = error.metadata || {};
+  const headers = meta.headers || {};
+  const resetMs = headers['X-RateLimit-Reset'];
+  const limit = headers['X-RateLimit-Limit'] || '?';
+  const remaining = headers['X-RateLimit-Remaining'] || '0';
+
+  if (resetMs) {
+    const resetDate = new Date(parseInt(resetMs));
+    const now = new Date();
+    const diffMs = resetDate - now;
+
+    if (diffMs > 0) {
+      const hours = Math.floor(diffMs / 3600000);
+      const mins = Math.floor((diffMs % 3600000) / 60000);
+      resetText = `Resets in <span class="rl-reset">${hours}h ${mins}m</span> (${resetDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})})`;
+    } else {
+      resetText = `Reset time has passed — try refreshing`;
+    }
+  }
+
+  container.innerHTML = `
+    <div class="rate-limit-banner">
+      <span class="rl-icon">&#9888;</span>
+      <div class="rl-body">
+        <div class="rl-title">Rate Limit Reached</div>
+        <div class="rl-detail">
+          You've used all ${esc(String(limit))} free requests for today.
+          ${resetText ? resetText : 'The limit resets daily.'}
+          <br>Add $10 credits at <a href="https://openrouter.ai/settings/credits" target="_blank" style="color:var(--accent)">openrouter.ai/settings/credits</a> to get 1,000 requests/day.
+        </div>
+      </div>
+      <button class="rl-dismiss" onclick="this.closest('.rate-limit-banner').remove()" title="Dismiss">&times;</button>
+    </div>`;
+
+  // Auto-update countdown every minute
+  if (resetMs) {
+    const intervalId = setInterval(() => {
+      const banner = container.querySelector('.rate-limit-banner');
+      if (!banner) { clearInterval(intervalId); return; }
+
+      const resetDate = new Date(parseInt(resetMs));
+      const diffMs = resetDate - new Date();
+      if (diffMs <= 0) {
+        container.innerHTML = '';
+        clearInterval(intervalId);
+        return;
+      }
+      const hours = Math.floor(diffMs / 3600000);
+      const mins = Math.floor((diffMs % 3600000) / 60000);
+      const resetSpan = banner.querySelector('.rl-reset');
+      if (resetSpan) resetSpan.textContent = `${hours}h ${mins}m`;
+    }, 60000);
+  }
+}
+
+// --- Helpers ---
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// --- Start ---
+init();
+</script>
+</body>
+</html>

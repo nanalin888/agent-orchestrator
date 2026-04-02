@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -17,6 +19,7 @@ class AgentInfo(BaseModel):
     name: str
     description: str
     model: str
+    audio: bool = False
 
 
 class Message(BaseModel):
@@ -77,3 +80,12 @@ class SongPipelineResponse(BaseModel):
     audio_size_bytes: int = 0
     music_agent: str = ""
     music_model: str = ""
+
+
+class HealthResult(BaseModel):
+    agent_id: str
+    model: str
+    status: str = "unknown"  # ok | error | checking
+    latency_ms: int = 0
+    error: str | None = None
+    checked_at: datetime | None = None

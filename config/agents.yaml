@@ -35,7 +35,7 @@ agents:
   fast-assistant:
     name: "Fast Assistant"
     description: "Quick answers and simple tasks with minimal latency"
-    model: "nvidia/nemotron-nano-9b-v2:free"
+    model: "nvidia/nemotron-3-nano-30b-a3b:free"
     system_prompt: >
       You are a fast, helpful assistant. Keep answers brief and direct.
       One paragraph max unless asked for more.
@@ -69,7 +69,7 @@ agents:
   research-summarizer:
     name: "Research Summarizer"
     description: "Summarize documents, extract key points, and synthesize information"
-    model: "minimax/minimax-m2.5:free"
+    model: "nvidia/nemotron-3-super-120b-a12b:free"
     system_prompt: >
       You are a research analyst. Summarize information clearly and accurately.
       Extract key findings, identify patterns, and present structured summaries

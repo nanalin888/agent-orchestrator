@@ -1,13 +1,24 @@
+import time
+from datetime import datetime, timezone
+
+import httpx
 from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
 from src.agent_registry import registry
 from src.models import (
-    AgentInfo, Choice, Message, MusicGenRequest, MusicGenResponse,
+    AgentInfo, Choice, HealthResult, Message, MusicGenRequest, MusicGenResponse,
     RunRequest, RunResponse, SongPipelineRequest, SongPipelineResponse, Usage,
 )
 
 router = APIRouter()
+
+# In-memory health cache
+_health_cache: list[HealthResult] = []
+_health_cache_time: float = 0
+_HEALTH_TTL = 120  # seconds
+
+OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
 
 
 @router.get("/health")
@@ -18,9 +29,54 @@ async def health():
 @router.get("/agents", response_model=list[AgentInfo])
 async def list_agents():
     return [
-        AgentInfo(id=a.id, name=a.name, description=a.description, model=a.model)
+        AgentInfo(id=a.id, name=a.name, description=a.description, model=a.model, audio=a.audio)
         for a in registry.list_all()
     ]
+
+
+@router.get("/agents/health", response_model=list[HealthResult])
+async def agents_health(force: bool = False):
+    """Check model availability by querying OpenRouter's model catalog (free, no rate limit)."""
+    global _health_cache, _health_cache_time
+
+    now = time.time()
+    if not force and _health_cache and (now - _health_cache_time) < _HEALTH_TTL:
+        return _health_cache
+
+    # Single free API call — no auth needed, doesn't count against rate limit
+    start = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=10) as http:
+            resp = await http.get(OPENROUTER_MODELS_URL)
+            resp.raise_for_status()
+            catalog = resp.json()
+    except Exception as e:
+        return [HealthResult(
+            agent_id="__catalog__", model="openrouter", status="error",
+            error=f"Failed to fetch model catalog: {e}",
+            checked_at=datetime.now(timezone.utc),
+        )]
+
+    fetch_ms = int((time.monotonic() - start) * 1000)
+    available = {m["id"] for m in catalog.get("data", [])}
+    checked_at = datetime.now(timezone.utc)
+
+    results = []
+    for agent in registry.list_all():
+        if agent.model in available:
+            status = "ok"
+            error = None
+        else:
+            status = "error"
+            error = f"Model '{agent.model}' not found in OpenRouter catalog"
+        results.append(HealthResult(
+            agent_id=agent.id, model=agent.model, status=status,
+            latency_ms=fetch_ms, error=error, checked_at=checked_at,
+        ))
+
+    _health_cache = results
+    _health_cache_time = now
+    return results
 
 
 @router.get("/agents/{agent_id}", response_model=AgentInfo)
@@ -28,7 +84,7 @@ async def get_agent(agent_id: str):
     agent = registry.get(agent_id)
     if not agent:
         raise HTTPException(404, f"Agent '{agent_id}' not found")
-    return AgentInfo(id=agent.id, name=agent.name, description=agent.description, model=agent.model)
+    return AgentInfo(id=agent.id, name=agent.name, description=agent.description, model=agent.model, audio=agent.audio)
 
 
 @router.post("/agents/{agent_id}/run")

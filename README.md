@@ -9,6 +9,12 @@ Client (CLI, web app, IDE)
             → Claude, GPT, Llama, Gemini, Qwen, Lyria, etc.
 ```
 
+## Web UI
+
+The service includes a built-in web dashboard at `http://localhost:8000` with a chat interface for all agents and a model availability dashboard.
+
+![Model Availability Dashboard](docs/dashboard.png)
+
 ## Why
 
 - **One API, many models** — call different LLMs through a single endpoint
@@ -17,6 +23,7 @@ Client (CLI, web app, IDE)
 - **Music generation** — generate songs and clips via Google Lyria 3
 - **Agent pipelines** — chain agents together (e.g. songwriter → music generation)
 - **MCP server** — built-in Model Context Protocol endpoint at `/mcp`
+- **Web UI included** — built-in chat interface and model availability dashboard
 - **Zero cost to start** — ships with 8 free text agents + 2 music agents
 
 ## Quick Start
@@ -258,6 +265,10 @@ All configuration is via environment variables (or `.env` file):
 agent-orchestrator/
 ├── config/
 │   └── agents.yaml              # Agent definitions
+├── static/
+│   └── index.html               # Web UI (chat + dashboard)
+├── docs/
+│   └── dashboard.png            # Dashboard screenshot
 ├── src/
 │   ├── main.py                  # FastAPI app + static file serving
 │   ├── models.py                # Pydantic request/response schemas
