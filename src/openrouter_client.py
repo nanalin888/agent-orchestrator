@@ -1,5 +1,8 @@
+import base64
 import json
+import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import httpx
 from httpx_sse import aconnect_sse
@@ -7,6 +10,7 @@ from httpx_sse import aconnect_sse
 from src.models import AgentConfig, Message
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+AUDIO_DIR = Path(__file__).parent.parent / "generated_audio"
 
 
 class OpenRouterClient:
@@ -83,6 +87,56 @@ class OpenRouterClient:
             except (json.JSONDecodeError, IndexError, KeyError):
                 continue
         await resp.aclose()
+
+    async def generate_audio(self, agent: AgentConfig, prompt: str) -> dict:
+        """Stream a Lyria audio generation request. Returns caption, file path, and size."""
+        AUDIO_DIR.mkdir(exist_ok=True)
+        payload = {
+            "model": agent.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": True,
+        }
+        req = self._http.build_request("POST", OPENROUTER_URL, json=payload)
+        resp = await self._http.send(req, stream=True)
+
+        caption = ""
+        audio_b64 = ""
+
+        async for line in resp.aiter_lines():
+            if not line.startswith("data: "):
+                continue
+            data_str = line[6:]
+            if data_str.strip() == "[DONE]":
+                break
+            try:
+                chunk = json.loads(data_str)
+                if "error" in chunk:
+                    raise RuntimeError(
+                        f"OpenRouter: {chunk['error'].get('message', 'Unknown error')}"
+                    )
+                delta = chunk.get("choices", [{}])[0].get("delta", {})
+                if "audio" in delta:
+                    audio_b64 += delta["audio"].get("data", "")
+                elif "content" in delta:
+                    caption += delta["content"]
+            except json.JSONDecodeError:
+                continue
+
+        await resp.aclose()
+
+        if not audio_b64:
+            raise RuntimeError("No audio data received from model")
+
+        audio_bytes = base64.b64decode(audio_b64)
+        filename = f"{uuid.uuid4().hex}.mp3"
+        filepath = AUDIO_DIR / filename
+        filepath.write_bytes(audio_bytes)
+
+        return {
+            "caption": caption,
+            "filename": filename,
+            "size_bytes": len(audio_bytes),
+        }
 
     async def close(self) -> None:
         await self._http.aclose()

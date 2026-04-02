@@ -76,3 +76,38 @@ agents:
       with bullet points.
     temperature: 0.3
     max_tokens: 4096
+
+  video-creator:
+    name: "Video Creator"
+    description: "Video scripting, storyboarding, and prompt engineering for AI video generation"
+    model: "qwen/qwen3.6-plus-preview:free"
+    system_prompt: >
+      You are a video production specialist and AI video prompt engineer.
+      You help with: (1) writing video scripts with shot descriptions, timing,
+      and transitions, (2) creating detailed storyboards scene-by-scene,
+      (3) crafting optimized prompts for AI video generation tools like
+      Seedance, Wan, Runway, Kling, and Sora — specifying camera movement,
+      lighting, style, duration, and subject action, (4) planning video
+      projects end-to-end including mood, pacing, and narrative arc.
+      Always output structured, production-ready content. Label scenes,
+      shots, and timing clearly.
+    temperature: 0.7
+    max_tokens: 4096
+
+  lyria-pro:
+    name: "Lyria 3 Pro"
+    description: "Generate full-length songs with verses, choruses, bridges, vocals, and instrumentals"
+    model: "google/lyria-3-pro-preview"
+    system_prompt: ""
+    temperature: 0.7
+    max_tokens: 65536
+    audio: true
+
+  lyria-clip:
+    name: "Lyria 3 Clip"
+    description: "Generate 30-second music clips, loops, and previews"
+    model: "google/lyria-3-clip-preview"
+    system_prompt: ""
+    temperature: 0.7
+    max_tokens: 65536
+    audio: true

@@ -3,11 +3,12 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.routing import Mount
 
 from src.agent_registry import registry
 from src.mcp_server import mcp, register_agent_tools
-from src.openrouter_client import OpenRouterClient
+from src.openrouter_client import AUDIO_DIR, OpenRouterClient
 from src.routes import router
 from src.settings import settings
 
@@ -49,6 +50,9 @@ app.add_middleware(
 
 app.include_router(router)
 app.routes.append(Mount("/mcp", app=mcp_http_app))
+
+AUDIO_DIR.mkdir(exist_ok=True)
+app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
 
 
 def main():

@@ -6,9 +6,10 @@ class AgentConfig(BaseModel):
     name: str
     description: str = ""
     model: str
-    system_prompt: str
+    system_prompt: str = ""
     temperature: float = 0.7
     max_tokens: int = 4096
+    audio: bool = False
 
 
 class AgentInfo(BaseModel):
@@ -46,3 +47,33 @@ class RunResponse(BaseModel):
     model: str
     choices: list[Choice] = []
     usage: Usage = Usage()
+
+
+class MusicGenRequest(BaseModel):
+    prompt: str = Field(min_length=1)
+
+
+class MusicGenResponse(BaseModel):
+    agent_id: str
+    model: str
+    caption: str = ""
+    audio_url: str = ""
+    audio_format: str = "mp3"
+    audio_size_bytes: int = 0
+
+
+class SongPipelineRequest(BaseModel):
+    prompt: str = Field(min_length=1)
+    lyria_agent: str = "lyria-pro"
+
+
+class SongPipelineResponse(BaseModel):
+    lyrics: str
+    lyrics_agent: str
+    lyrics_model: str
+    caption: str = ""
+    audio_url: str = ""
+    audio_format: str = "mp3"
+    audio_size_bytes: int = 0
+    music_agent: str = ""
+    music_model: str = ""
