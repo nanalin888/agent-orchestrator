@@ -1,0 +1,230 @@
+---
+title: Pipelines
+description: 'Chain agents together for multi-step workflows'
+---
+
+# Pipelines
+
+Pipelines chain multiple agents together to create multi-step workflows. The orchestrator includes two built-in pipelines for song and video generation.
+
+## Song Pipeline
+
+Chain `songwriter` → `lyria` to generate lyrics and then turn them into music.
+
+### Endpoint
+
+```bash
+POST /pipelines/song
+{
+  "prompt": "A lullaby about building with LEGO bricks",
+  "lyria_agent": "lyria-pro"  // or "lyria-clip"
+}
+```
+
+### Response
+
+```json
+{
+  "lyrics": "[Verse 1]\nA little brick against the blue...",
+  "lyrics_agent": "songwriter",
+  "lyrics_model": "nvidia/nemotron-3-super-120b-a12b:free",
+  "caption": "A gentle lullaby...",
+  "audio_url": "http://localhost:8000/audio/abc123.mp3",
+  "audio_format": "mp3",
+  "audio_size_bytes": 744608,
+  "music_agent": "lyria-clip",
+  "music_model": "google/lyria-3-clip-preview"
+}
+```
+
+### Flow
+
+```
+1. User prompt → songwriter agent (text)
+2. Songwriter generates structured lyrics
+3. Lyrics → lyria agent (music generation)
+4. Returns both lyrics + audio URL
+```
+
+### Cost
+
+- Songwriter: Free
+- Lyria Pro: $0.08/song
+- Lyria Clip: $0.04/clip
+
+## Video Pipeline
+
+Chain `video-creator` → `video model` to refine prompts and generate videos.
+
+### Endpoint
+
+```bash
+POST /pipelines/video
+{
+  "prompt": "A peaceful sunset over mountains",
+  "video_agent": "veo-3",          // or "wan-video"
+  "skip_refinement": false,        // optional
+  "duration": 4,                   // optional
+  "resolution": "1080p",           // optional
+  "aspect_ratio": "16:9",          // optional
+  "generate_audio": false          // optional
+}
+```
+
+### Response (HTTP 202)
+
+```json
+{
+  "job_id": "abc123",
+  "status": "pending",
+  "refined_prompt": "Wide cinematic shot of a golden hour sunset...",
+  "video_agent": "veo-3",
+  "model": "google/veo-3.1"
+}
+```
+
+### Flow
+
+```
+1. User prompt → video-creator agent (text)
+2. Video-creator refines prompt with cinematography details
+3. Refined prompt → video model (async generation)
+4. Returns job_id, poll via GET /videos/{job_id}
+```
+
+### Skip Refinement
+
+Set `skip_refinement: true` to bypass video-creator and use your prompt directly:
+
+```bash
+POST /pipelines/video
+{
+  "prompt": "Your already-optimized video prompt",
+  "video_agent": "veo-3",
+  "skip_refinement": true
+}
+```
+
+### Cost
+
+- Video-creator: Free
+- Veo 3.1: $0.20-$0.60/sec (~$0.80-$2.40 for 4s)
+- Wan 2.6: $0.04-$0.12/sec (~$0.16-$0.48 for 4s)
+
+## Building Custom Pipelines
+
+You can build custom pipelines by chaining API calls:
+
+### Example: Code Review → Fix → Test
+
+```python
+# 1. Review code
+review_response = POST /agents/code-reviewer/run
+{
+  "task_id": "fix-123",
+  "messages": [{"role": "user", "content": "Review auth.py"}]
+}
+
+# 2. Extract issues, append to task context
+POST /tasks/fix-123/context/append
+{
+  "agent_id": "code-reviewer",
+  "entry": review_response["issues"]
+}
+
+# 3. Fix issues (different agent with task context)
+fix_response = POST /agents/reasoning-analyst/run
+{
+  "task_id": "fix-123",  # Sees code-reviewer's findings
+  "messages": [{"role": "user", "content": "Fix issues in context"}]
+}
+
+# 4. Generate tests
+test_response = POST /agents/creative-writer/run
+{
+  "task_id": "fix-123",  # Sees all prior context
+  "messages": [{"role": "user", "content": "Write tests for fixes"}]
+}
+```
+
+### Example: Research → Summarize → Present
+
+```python
+# 1. Research with multiple agents in parallel
+task_id = "research-123"
+topics = ["background", "solutions", "tradeoffs"]
+
+for topic in topics:
+    POST /agents/research-summarizer/run
+    {
+      "task_id": task_id,
+      "messages": [{"role": "user", "content": f"Research {topic}"}]
+    }
+
+# 2. Each agent appends findings to shared context
+
+# 3. Synthesize all research
+synthesis = POST /agents/reasoning-analyst/run
+{
+  "task_id": task_id,  # Sees all research findings
+  "messages": [{"role": "user", "content": "Synthesize research"}]
+}
+```
+
+## Pipeline Patterns
+
+### Sequential
+One agent's output feeds into the next:
+```
+A → B → C
+```
+
+### Parallel + Merge
+Multiple agents work in parallel, then one synthesizes:
+```
+A ─┐
+B ─┼─→ Synthesizer
+C ─┘
+```
+
+### Iterative
+Agent refines output through multiple passes:
+```
+Agent → Review → Agent → Review → Done
+```
+
+### Branching
+Different paths based on conditions:
+```
+         ┌─→ Path A
+Input ──┼─→ Path B
+         └─→ Path C
+```
+
+All patterns work with task context for shared state.
+
+## Best Practices
+
+1. **Use task context** for agent coordination
+2. **Pick optimal models** for each step (free where possible)
+3. **Keep prompts focused** - one clear task per agent
+4. **Handle errors** - agents can fail, build retries
+5. **Cost awareness** - monitor paid model usage
+
+## Error Handling
+
+Pipelines can fail at any step. Handle gracefully:
+
+```python
+try:
+    # Step 1
+    lyrics = POST /agents/songwriter/run
+    
+    # Step 2  
+    music = POST /agents/lyria-pro/generate-music
+    return {lyrics, music}
+    
+except AgentError as e:
+    # Retry, fallback, or return partial result
+    return {"error": str(e), "partial": lyrics}
+```

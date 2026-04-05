@@ -1,0 +1,110 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Agent Orchestrator",
+  "colors": {
+    "primary": "#58a6ff",
+    "light": "#58a6ff",
+    "dark": "#1f6feb"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/agents",
+              "concepts/pipelines",
+              "concepts/task-context"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "API Reference",
+            "pages": [
+              "api-reference/introduction",
+              {
+                "group": "Agents",
+                "pages": [
+                  "api-reference/agents/list",
+                  "api-reference/agents/get",
+                  "api-reference/agents/run",
+                  "api-reference/agents/generate-music",
+                  "api-reference/agents/generate-video"
+                ]
+              },
+              {
+                "group": "Pipelines",
+                "pages": [
+                  "api-reference/pipelines/song",
+                  "api-reference/pipelines/video"
+                ]
+              },
+              {
+                "group": "Task Context",
+                "pages": [
+                  "api-reference/context/init",
+                  "api-reference/context/append",
+                  "api-reference/context/get"
+                ]
+              },
+              {
+                "group": "Videos",
+                "pages": [
+                  "api-reference/videos/get",
+                  "api-reference/videos/list"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/nanalin888/agent-orchestrator",
+          "icon": "github"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/nanalin888/agent-orchestrator"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "https://github.com/nanalin888/agent-orchestrator"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/nanalin888/agent-orchestrator"
+    }
+  }
+}

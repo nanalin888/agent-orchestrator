@@ -1,0 +1,203 @@
+---
+title: Architecture
+description: 'How Agent Orchestrator works under the hood'
+---
+
+# Architecture
+
+Agent Orchestrator is a FastAPI service that coordinates multiple specialized AI agents through a unified API, with support for task context sharing and multi-model execution.
+
+## System Components
+
+```
+┌────────────────────────────────────────────────┐
+│         Client / Web UI / IDE                  │
+│  (Browser, Claude Code, MCP clients)           │
+│  • Chat interface • Video tab • Dashboard      │
+└────────────────────┬───────────────────────────┘
+                     │
+                     ▼
+┌────────────────────────────────────────────────────────────┐
+│          Agent Orchestrator API                            │
+│          (FastAPI Python service)                          │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  ┌─ Agent Registry ─────────────────────────────┐         │
+│  │  • 8 text agents (code, reasoning, writing)  │         │
+│  │  • 2 music agents (Lyria Pro, Clip)          │         │
+│  │  • 2 video agents (Veo 3.1, Wan 2.6)         │         │
+│  │  • agent_id → model, system_prompt, tools    │         │
+│  └───────────────────────────────────────────────┘         │
+│                                                            │
+│  ┌─ Router / Coordinator ───────────────────────┐         │
+│  │  • /agents/{id}/run (text completion)        │         │
+│  │  • /agents/{id}/generate-music (audio)       │         │
+│  │  • /agents/{id}/generate-video (video)       │         │
+│  │  • /pipelines/song (lyrics → music)          │         │
+│  │  • /pipelines/video (prompt → video)         │         │
+│  │  • /tasks/{id}/context/* (shared state)      │         │
+│  │  • /mcp (Model Context Protocol server)      │         │
+│  └───────────────────────────────────────────────┘         │
+│                                                            │
+│  ┌─ Clients & Job Trackers ────────────────────┐         │
+│  │  • OpenRouterClient (text, audio streaming)  │         │
+│  │  • VideoClient (async video generation)      │         │
+│  │  • In-memory video job tracker               │         │
+│  │  • Task context storage (file-based)         │         │
+│  └───────────────────────────────────────────────┘         │
+│                                                            │
+│  ┌─ Static File Serving ───────────────────────┐         │
+│  │  • /audio/*.mp3 (generated music)            │         │
+│  │  • /video/*.mp4 (generated videos)           │         │
+│  │  • /static/index.html (Web UI)               │         │
+│  └───────────────────────────────────────────────┘         │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+                     ▼
+┌────────────────────────────────────────────────────────────┐
+│              OpenRouter API                                │
+│         (unified LLM entry point)                          │
+└─────┬──────────────┬──────────────┬──────────────┬─────────┘
+      │              │              │              │
+      ▼              ▼              ▼              ▼
+┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+│ Claude  │    │   GPT   │    │ Llama   │    │ Gemini  │
+│ Qwen    │    │ Lyria   │    │ Veo     │    │  Wan    │
+│Nemotron │    │   GLM   │    │  Sora   │    │Seedance │
+└─────────┘    └─────────┘    └─────────┘    └─────────┘
+  Text           Text          Music           Video
+  Models         Models        Models          Models
+```
+
+## Key Design Principles
+
+### 1. Agent-as-Config
+Agents are defined in YAML, not code. Add a new agent by editing `config/agents.yaml`:
+
+```yaml
+my-agent:
+  name: "My Custom Agent"
+  model: "openai/gpt-4o"
+  system_prompt: "You are..."
+  temperature: 0.7
+```
+
+### 2. Multi-Model Execution
+Different agents use different models optimized for their task:
+- Code review: `qwen/qwen3-coder:free` (free, code-specialized)
+- Deep reasoning: `nvidia/nemotron-3-super-120b-a12b:free` (free, reasoning)
+- Music: `google/lyria-3-pro-preview` (paid, high quality)
+
+### 3. Shared Task Context
+Agents can share state during collaborative tasks:
+
+```python
+# Agent A discovers something
+POST /tasks/{id}/context/append
+
+# Agent B automatically sees it
+POST /agents/agent-b/run
+{
+  "task_id": "same-id",  # Injects Agent A's findings
+  "messages": [...]
+}
+```
+
+### 4. OpenRouter Gateway
+Single API for 350+ models from multiple providers:
+- Unified billing
+- Model switching without code changes
+- Automatic fallbacks
+
+## Request Flow
+
+### Text Completion
+
+```
+1. Client → POST /agents/code-reviewer/run
+2. Load agent config from registry
+3. Inject task context (if task_id provided)
+4. Call OpenRouter with agent's model + system_prompt
+5. Stream or return response
+```
+
+### Music Generation
+
+```
+1. Client → POST /agents/lyria-pro/generate-music
+2. Validate agent has audio: true
+3. Call OpenRouter audio generation API
+4. Download MP3 to generated_audio/
+5. Return local audio URL
+```
+
+### Video Generation
+
+```
+1. Client → POST /agents/veo-3/generate-video
+2. Submit job to OpenRouter video alpha API
+3. Return job_id immediately (HTTP 202)
+4. Client polls GET /videos/{job_id}
+5. On completion, download MP4 and cache URL
+```
+
+### Pipeline Execution
+
+```
+1. Client → POST /pipelines/song
+2. Run songwriter agent (text completion)
+3. Extract lyrics from response
+4. Run lyria agent (music generation)
+5. Return both lyrics + audio URL
+```
+
+## Data Flow
+
+### Task Context Sharing
+
+```
+~/.agent-orchestrator/
+  tasks/
+    security-audit-2026-04-05/
+      context.md    # Chronological log
+      meta.json     # Created/updated timestamps
+```
+
+**Agent A writes:**
+```markdown
+## 2026-04-05T10:30:00 — code-reviewer
+Found SQL injection at line 45
+```
+
+**Agent B reads:**
+Automatically injected as system message when `task_id` is provided.
+
+## Scalability Considerations
+
+### Current Design (Single Instance)
+- In-memory video job tracker
+- File-based task context
+- Single-threaded FastAPI
+- Good for: 10-100 concurrent users
+
+### Scaling Patterns
+For production scale, consider:
+- **Redis** for distributed job tracking
+- **S3/Object Storage** for audio/video files
+- **PostgreSQL** for task context with search
+- **Load balancer** for multiple API instances
+- **WebSocket** for real-time job updates
+
+## Security
+
+- API key authentication via OpenRouter
+- No user authentication (internal tool)
+- Rate limiting handled by OpenRouter
+- Static file serving (audio/video) - no auth
+- Task context isolated by task_id (no ACL)
+
+**Note:** This is designed as an internal tool. For production, add:
+- User authentication
+- Authorization for agents/tasks
+- Input validation and sanitization
+- Rate limiting at service level

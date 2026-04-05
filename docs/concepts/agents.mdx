@@ -1,0 +1,163 @@
+---
+title: Agents
+description: 'Pre-configured AI agents and how to add your own'
+---
+
+# Agents
+
+Agents are specialized AI assistants, each configured with a specific model and system prompt. The orchestrator ships with 12 pre-configured agents across text, music, and video generation.
+
+## Agent Types
+
+### Text Agents (Free)
+
+| Agent ID | Model | Specialization |
+|----------|-------|----------------|
+| `code-reviewer` | Qwen3-Coder | Code review, bug detection, security |
+| `reasoning-analyst` | Nemotron 3 Super 120B | Step-by-step analysis, comparisons |
+| `creative-writer` | Nemotron 3 Super 120B | Creative writing, brainstorming |
+| `fast-assistant` | Nemotron Nano 9B | Quick answers, low latency |
+| `agentic-planner` | GLM-4.5-Air | Task decomposition, planning |
+| `songwriter` | Nemotron 3 Super 120B | Song lyrics with structure |
+| `research-summarizer` | Nemotron 3 Super 120B | Summarization, synthesis |
+| `video-creator` | Nemotron 3 Super 120B | Video scripting, prompt engineering |
+
+All text agents use **free models** on OpenRouter.
+
+### Music Agents (Requires Credits)
+
+| Agent ID | Model | Output | Cost |
+|----------|-------|--------|------|
+| `lyria-pro` | Google Lyria 3 Pro | Full songs with vocals | $0.08/song |
+| `lyria-clip` | Google Lyria 3 Clip | 30-second clips | $0.04/clip |
+
+### Video Agents (Requires Credits)
+
+| Agent ID | Model | Output | Cost |
+|----------|-------|--------|------|
+| `veo-3` | Google Veo 3.1 | 4K videos with audio | $0.20-$0.60/sec |
+| `wan-video` | Alibaba Wan 2.6 | 720p/1080p videos | $0.04-$0.12/sec |
+
+## Using Agents
+
+### Basic Usage
+
+```bash
+POST /agents/{agent_id}/run
+{
+  "messages": [
+    {"role": "user", "content": "Your prompt here"}
+  ]
+}
+```
+
+### With Task Context
+
+```bash
+POST /agents/{agent_id}/run
+{
+  "task_id": "my-task-123",
+  "messages": [
+    {"role": "user", "content": "Your prompt here"}
+  ]
+}
+```
+
+Agent automatically receives shared task context.
+
+### Streaming
+
+```bash
+POST /agents/{agent_id}/run
+{
+  "messages": [...],
+  "stream": true
+}
+```
+
+Returns Server-Sent Events (SSE) for real-time streaming.
+
+## Adding Custom Agents
+
+Edit `config/agents.yaml`:
+
+```yaml
+agents:
+  my-custom-agent:
+    name: "My Custom Agent"
+    description: "What this agent does"
+    model: "openai/gpt-4o"
+    system_prompt: >
+      You are a helpful assistant specialized in...
+      
+      Your task is to...
+    temperature: 0.7
+    max_tokens: 4096
+    audio: false
+    video: false
+```
+
+### Field Reference
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | yes | Human-readable name |
+| `description` | string | yes | What the agent does |
+| `model` | string | yes | OpenRouter model ID |
+| `system_prompt` | string | yes | Instructions for the agent |
+| `temperature` | float | no | 0-1, creativity level (default: 0.7) |
+| `max_tokens` | int | no | Max response length (default: 4096) |
+| `audio` | bool | no | Audio generation capability (default: false) |
+| `video` | bool | no | Video generation capability (default: false) |
+| `default_duration` | int | no | For video agents: default seconds |
+| `default_resolution` | string | no | For video agents: 480p, 720p, 1080p, 4K |
+| `default_aspect_ratio` | string | no | For video agents: 16:9, 9:16, 1:1, etc. |
+
+Restart the service to load new agents.
+
+## Browse Available Models
+
+Visit [openrouter.ai/models](https://openrouter.ai/models) to explore 350+ models.
+
+Filter by:
+- **Free models** for cost-optimized agents
+- **Capability** (code, reasoning, creative)
+- **Context window** for long documents
+- **Speed** for real-time applications
+
+## Agent Selection Strategy
+
+Choose models based on task requirements:
+
+| Task | Recommended Model | Why |
+|------|------------------|-----|
+| Code review | Qwen3-Coder | Code-specialized, free |
+| Deep reasoning | Nemotron 120B | Strong logic, free |
+| Creative writing | Claude Opus | Best quality (paid) |
+| Quick answers | Nemotron Nano | Fast, free |
+| Music generation | Lyria Pro | High quality audio |
+| Video generation | Veo 3.1 | Best quality, 4K support |
+
+## Multi-Agent Patterns
+
+### Specialization
+Use different agents for different parts of a task:
+- Code review: Qwen
+- Security analysis: Claude
+- Documentation: GPT-4
+
+### Cost Optimization
+- **Free agents** for bulk operations
+- **Paid agents** only for final quality pass
+
+### Parallel Execution
+Run multiple agents concurrently via task context:
+```python
+# Spawn 3 agents in parallel
+task_id = "parallel-review"
+agents = ["code-reviewer", "reasoning-analyst", "creative-writer"]
+for agent in agents:
+    POST /agents/{agent}/run with task_id
+```
+
+All agents share findings via task context.
