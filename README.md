@@ -2,11 +2,64 @@
 
 A lightweight Python service that exposes multiple named AI agents — each bound to a specific LLM model via [OpenRouter](https://openrouter.ai) — through a simple REST API. Includes music generation via Google Lyria, video generation via Veo/Wan, and agent-chaining pipelines.
 
+## Architecture
+
 ```
-Client (CLI, web app, IDE)
-    → Agent Orchestrator (this service)
-        → OpenRouter
-            → Claude, GPT, Llama, Gemini, Qwen, Lyria, etc.
+┌────────────────────────────────────────────────┐
+│         Client / Web UI / IDE                  │
+│  (Browser, Claude Code, MCP clients)           │
+│  • Chat interface • Video tab • Dashboard      │
+└────────────────────┬───────────────────────────┘
+                     │
+                     ▼
+┌────────────────────────────────────────────────────────────┐
+│          Agent Orchestrator API                            │
+│          (FastAPI Python service)                          │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  ┌─ Agent Registry ─────────────────────────────┐         │
+│  │  • 8 text agents (code, reasoning, writing)  │         │
+│  │  • 2 music agents (Lyria Pro, Clip)          │         │
+│  │  • 2 video agents (Veo 3.1, Wan 2.6)         │         │
+│  │  • agent_id → model, system_prompt, tools    │         │
+│  └───────────────────────────────────────────────┘         │
+│                                                            │
+│  ┌─ Router / Coordinator ───────────────────────┐         │
+│  │  • /agents/{id}/run (text completion)        │         │
+│  │  • /agents/{id}/generate-music (audio)       │         │
+│  │  • /agents/{id}/generate-video (video)       │         │
+│  │  • /pipelines/song (lyrics → music)          │         │
+│  │  • /pipelines/video (prompt → video)         │         │
+│  │  • /mcp (Model Context Protocol server)      │         │
+│  └───────────────────────────────────────────────┘         │
+│                                                            │
+│  ┌─ Clients & Job Trackers ────────────────────┐         │
+│  │  • OpenRouterClient (text, audio streaming)  │         │
+│  │  • VideoClient (async video generation)      │         │
+│  │  • In-memory video job tracker               │         │
+│  └───────────────────────────────────────────────┘         │
+│                                                            │
+│  ┌─ Static File Serving ───────────────────────┐         │
+│  │  • /audio/*.mp3 (generated music)            │         │
+│  │  • /video/*.mp4 (generated videos)           │         │
+│  │  • /static/index.html (Web UI)               │         │
+│  └───────────────────────────────────────────────┘         │
+└────────────────────┬───────────────────────────────────────┘
+                     │
+                     ▼
+┌────────────────────────────────────────────────────────────┐
+│              OpenRouter API                                │
+│         (unified LLM entry point)                          │
+└─────┬──────────────┬──────────────┬──────────────┬─────────┘
+      │              │              │              │
+      ▼              ▼              ▼              ▼
+┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐
+│ Claude  │    │   GPT   │    │ Llama   │    │ Gemini  │
+│ Qwen    │    │ Lyria   │    │ Veo     │    │  Wan    │
+│Nemotron │    │   GLM   │    │  Sora   │    │Seedance │
+└─────────┘    └─────────┘    └─────────┘    └─────────┘
+  Text           Text          Music           Video
+  Models         Models        Models          Models
 ```
 
 ## Web UI
