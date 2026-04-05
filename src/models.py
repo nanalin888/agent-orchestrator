@@ -12,6 +12,10 @@ class AgentConfig(BaseModel):
     temperature: float = 0.7
     max_tokens: int = 4096
     audio: bool = False
+    video: bool = False
+    default_duration: int | None = None
+    default_resolution: str | None = None
+    default_aspect_ratio: str | None = None
 
 
 class AgentInfo(BaseModel):
@@ -20,6 +24,7 @@ class AgentInfo(BaseModel):
     description: str
     model: str
     audio: bool = False
+    video: bool = False
 
 
 class Message(BaseModel):
@@ -80,6 +85,52 @@ class SongPipelineResponse(BaseModel):
     audio_size_bytes: int = 0
     music_agent: str = ""
     music_model: str = ""
+
+
+class VideoGenRequest(BaseModel):
+    prompt: str = Field(min_length=1)
+    duration: int | None = None
+    resolution: str | None = None
+    aspect_ratio: str | None = None
+    generate_audio: bool = False
+    input_references: list[dict] | None = None
+
+
+class VideoGenResponse(BaseModel):
+    job_id: str
+    status: str = "pending"
+    agent_id: str
+    model: str
+
+
+class VideoStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    agent_id: str
+    model: str
+    prompt: str = ""
+    video_url: str | None = None
+    error: str | None = None
+    cost: float | None = None
+    created_at: datetime
+
+
+class VideoPipelineRequest(BaseModel):
+    prompt: str = Field(min_length=1)
+    video_agent: str = "veo-3"
+    skip_refinement: bool = False
+    duration: int | None = None
+    resolution: str | None = None
+    aspect_ratio: str | None = None
+    generate_audio: bool = False
+
+
+class VideoPipelineResponse(BaseModel):
+    job_id: str
+    status: str = "pending"
+    refined_prompt: str | None = None
+    video_agent: str
+    model: str
 
 
 class HealthResult(BaseModel):

@@ -1,6 +1,6 @@
 # Agent Orchestrator
 
-A lightweight Python service that exposes multiple named AI agents — each bound to a specific LLM model via [OpenRouter](https://openrouter.ai) — through a simple REST API. Includes music generation via Google Lyria and an agent-chaining pipeline.
+A lightweight Python service that exposes multiple named AI agents — each bound to a specific LLM model via [OpenRouter](https://openrouter.ai) — through a simple REST API. Includes music generation via Google Lyria, video generation via Veo/Wan, and agent-chaining pipelines.
 
 ```
 Client (CLI, web app, IDE)
@@ -21,10 +21,11 @@ The service includes a built-in web dashboard at `http://localhost:8000` with a 
 - **Agent-as-config** — add a new agent by editing a YAML file, no code changes
 - **Streaming built-in** — SSE streaming for real-time responses
 - **Music generation** — generate songs and clips via Google Lyria 3
-- **Agent pipelines** — chain agents together (e.g. songwriter → music generation)
+- **Video generation** — create videos with Veo 3.1, Wan 2.6, and more
+- **Agent pipelines** — chain agents together (e.g. video-creator → video generation)
 - **MCP server** — built-in Model Context Protocol endpoint at `/mcp`
-- **Web UI included** — built-in chat interface and model availability dashboard
-- **Zero cost to start** — ships with 8 free text agents + 2 music agents
+- **Web UI included** — chat interface, video generation tab, and model availability dashboard
+- **Zero cost to start** — ships with 8 free text agents (music + video require credits)
 
 ## Quick Start
 
@@ -58,7 +59,7 @@ OPENROUTER_API_KEY=sk-or-v1-your-key-here
 python3 -m src.main
 ```
 
-The server starts at `http://localhost:8000` with 10 agents loaded.
+The server starts at `http://localhost:8000` with 12 agents loaded (8 text, 2 music, 2 video).
 
 ## API Reference
 
@@ -145,6 +146,108 @@ curl -X POST localhost:8000/agents/lyria-clip/generate-music \
 
 The generated MP3 file is served at the returned `audio_url`.
 
+### Generate video
+
+```bash
+POST /agents/{agent_id}/generate-video
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `prompt` | string | yes | Description of the video to generate |
+| `duration` | int | no | Video length in seconds (3-10, model-dependent) |
+| `resolution` | string | no | `480p`, `720p`, `1080p`, or `4K` |
+| `aspect_ratio` | string | no | `16:9`, `9:16`, `1:1`, or `4:3` |
+| `generate_audio` | bool | no | Generate audio with video (default: false) |
+
+**Example:**
+
+```bash
+curl -X POST localhost:8000/agents/veo-3/generate-video \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A cat playing piano in a cozy living room",
+    "duration": 4,
+    "resolution": "1080p",
+    "aspect_ratio": "16:9"
+  }'
+```
+
+**Response (HTTP 202):**
+
+```json
+{
+  "job_id": "abc123",
+  "status": "pending",
+  "agent_id": "veo-3",
+  "model": "google/veo-3.1"
+}
+```
+
+Then poll for status:
+
+```bash
+curl localhost:8000/videos/abc123
+```
+
+**Response when complete:**
+
+```json
+{
+  "job_id": "abc123",
+  "status": "completed",
+  "agent_id": "veo-3",
+  "model": "google/veo-3.1",
+  "prompt": "A cat playing piano in a cozy living room",
+  "video_url": "http://localhost:8000/video/xyz789.mp4",
+  "cost": 0.80,
+  "created_at": "2026-04-05T14:30:00Z"
+}
+```
+
+The generated MP4 is available at the returned `video_url`.
+
+### Video pipeline (video-creator → video)
+
+Chain the video-creator agent with a video model to refine your prompt and then generate the video.
+
+```bash
+POST /pipelines/video
+```
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `prompt` | string | yes | — | Describe the video you want |
+| `video_agent` | string | no | `veo-3` | Which video agent to use (`veo-3` or `wan-video`) |
+| `skip_refinement` | bool | no | `false` | Skip prompt refinement by video-creator |
+| `duration` | int | no | — | Video length in seconds |
+| `resolution` | string | no | — | Video resolution |
+| `aspect_ratio` | string | no | — | Video aspect ratio |
+| `generate_audio` | bool | no | `false` | Generate audio with video |
+
+**Example:**
+
+```bash
+curl -X POST localhost:8000/pipelines/video \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A peaceful sunset over mountains",
+    "video_agent": "wan-video"
+  }'
+```
+
+**Response (HTTP 202):**
+
+```json
+{
+  "job_id": "def456",
+  "status": "pending",
+  "refined_prompt": "Wide cinematic shot of a golden hour sunset over snow-capped mountain peaks, warm orange and purple gradient sky, slow pan left to right, peaceful atmosphere...",
+  "video_agent": "wan-video",
+  "model": "alibaba/wan-2.6"
+}
+```
+
 ### Song pipeline (songwriter → music)
 
 Chain the songwriter agent with Lyria to generate lyrics and then turn them into music in a single call.
@@ -224,10 +327,19 @@ GET /health
 
 ### Music agents (requires credits)
 
-| Agent ID | Model | Output |
-|----------|-------|--------|
-| `lyria-pro` | Google Lyria 3 Pro | Full-length songs with vocals ($0.08/song) |
-| `lyria-clip` | Google Lyria 3 Clip | 30-second clips and loops ($0.04/clip) |
+| Agent ID | Model | Output | Cost |
+|----------|-------|--------|------|
+| `lyria-pro` | Google Lyria 3 Pro | Full-length songs with vocals | $0.08/song |
+| `lyria-clip` | Google Lyria 3 Clip | 30-second clips and loops | $0.04/clip |
+
+### Video agents (requires credits)
+
+| Agent ID | Model | Output | Cost |
+|----------|-------|--------|------|
+| `veo-3` | Google Veo 3.1 | High-quality 4K videos with audio | $0.20-$0.60/sec |
+| `wan-video` | Alibaba Wan 2.6 | Budget-friendly 720p/1080p videos | $0.04-$0.12/sec |
+
+> **Note:** Video generation is currently in alpha and requires OpenRouter credits. A 4-second video costs approximately $0.32 (Wan) to $0.80 (Veo).
 
 ## Adding Your Own Agents
 
@@ -244,6 +356,10 @@ agents:
     temperature: 0.7
     max_tokens: 4096
     audio: false                     # set to true for audio generation models
+    video: false                     # set to true for video generation models
+    default_duration: 5              # for video agents: default duration in seconds
+    default_resolution: "1080p"      # for video agents: default resolution
+    default_aspect_ratio: "16:9"     # for video agents: default aspect ratio
 ```
 
 Restart the service and it's ready. Browse available models at [openrouter.ai/models](https://openrouter.ai/models).
@@ -275,9 +391,11 @@ agent-orchestrator/
 │   ├── routes.py                # API endpoints + pipelines
 │   ├── agent_registry.py        # YAML config loader
 │   ├── openrouter_client.py     # OpenRouter client (text + audio streaming)
+│   ├── video_client.py          # OpenRouter video alpha API client
 │   ├── mcp_server.py            # MCP server for Claude Code integration
 │   └── settings.py              # Environment configuration
 ├── generated_audio/             # Generated MP3 files (gitignored)
+├── generated_video/             # Generated MP4 files (gitignored)
 ├── .env.example                 # Environment template
 └── pyproject.toml               # Project metadata + dependencies
 ```

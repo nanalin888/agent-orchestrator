@@ -13,6 +13,7 @@ from src.mcp_server import mcp, register_agent_tools
 from src.openrouter_client import AUDIO_DIR, OpenRouterClient
 from src.routes import router
 from src.settings import settings
+from src.video_client import VIDEO_DIR, VideoClient
 
 
 # Build MCP sub-app early so session_manager is initialized
@@ -28,6 +29,10 @@ async def lifespan(app: FastAPI):
         app_referer=settings.app_referer,
     )
     app.state.openrouter_client = client
+
+    video_client = VideoClient(api_key=settings.openrouter_api_key)
+    app.state.video_client = video_client
+
     register_agent_tools(app)
     print(f"Loaded {len(registry.list_all())} agents")
     for a in registry.list_all():
@@ -55,6 +60,9 @@ app.routes.append(Mount("/mcp", app=mcp_http_app))
 
 AUDIO_DIR.mkdir(exist_ok=True)
 app.mount("/audio", StaticFiles(directory=str(AUDIO_DIR)), name="audio")
+
+VIDEO_DIR.mkdir(exist_ok=True)
+app.mount("/video", StaticFiles(directory=str(VIDEO_DIR)), name="video")
 
 STATIC_DIR = Path(__file__).parent.parent / "static"
 STATIC_DIR.mkdir(exist_ok=True)

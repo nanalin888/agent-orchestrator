@@ -80,7 +80,7 @@ agents:
   video-creator:
     name: "Video Creator"
     description: "Video scripting, storyboarding, and prompt engineering for AI video generation"
-    model: "qwen/qwen3.6-plus-preview:free"
+    model: "nvidia/nemotron-3-super-120b-a12b:free"
     system_prompt: >
       You are a video production specialist and AI video prompt engineer.
       You help with: (1) writing video scripts with shot descriptions, timing,
@@ -111,3 +111,27 @@ agents:
     temperature: 0.7
     max_tokens: 65536
     audio: true
+
+  veo-3:
+    name: "Veo 3.1"
+    description: "Generate high-quality videos up to 4K with audio (Google Veo 3.1)"
+    model: "google/veo-3.1"
+    system_prompt: ""
+    temperature: 0.7
+    max_tokens: 4096
+    video: true
+    default_duration: 4
+    default_resolution: "1080p"
+    default_aspect_ratio: "16:9"
+
+  wan-video:
+    name: "Wan 2.6"
+    description: "Generate budget-friendly videos with flexible aspect ratios (Alibaba Wan 2.6)"
+    model: "alibaba/wan-2.6"
+    system_prompt: ""
+    temperature: 0.7
+    max_tokens: 4096
+    video: true
+    default_duration: 5
+    default_resolution: "720p"
+    default_aspect_ratio: "16:9"
