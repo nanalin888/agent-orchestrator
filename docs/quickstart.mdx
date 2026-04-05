@@ -1,0 +1,148 @@
+---
+title: Quick Start
+description: 'Get Agent Orchestrator running in 5 minutes'
+---
+
+## Prerequisites
+
+- Python 3.10 or higher
+- OpenRouter API key (get one free at [openrouter.ai/keys](https://openrouter.ai/keys))
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/nanalin888/agent-orchestrator.git
+    cd agent-orchestrator
+    ```
+  </Step>
+  
+  <Step title="Create virtual environment">
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+    ```
+  </Step>
+  
+  <Step title="Install dependencies">
+    ```bash
+    pip install -e .
+    ```
+  </Step>
+  
+  <Step title="Configure environment">
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Edit `.env` and add your OpenRouter API key:
+    ```
+    OPENROUTER_API_KEY=sk-or-v1-your-key-here
+    ```
+  </Step>
+  
+  <Step title="Start the service">
+    ```bash
+    python3 -m src.main
+    ```
+    
+    The server starts at `http://localhost:8000` with 12 agents loaded.
+  </Step>
+</Steps>
+
+## Verify Installation
+
+<CodeGroup>
+  ```bash Health Check
+  curl http://localhost:8000/health
+  ```
+  
+  ```bash List Agents
+  curl http://localhost:8000/agents
+  ```
+</CodeGroup>
+
+## Your First Agent Request
+
+<CodeGroup>
+  ```bash cURL
+  curl -X POST http://localhost:8000/agents/fast-assistant/run \
+    -H "Content-Type: application/json" \
+    -d '{
+      "messages": [
+        {"role": "user", "content": "What is 2+2?"}
+      ]
+    }'
+  ```
+  
+  ```python Python
+  import httpx
+  
+  response = httpx.post(
+      "http://localhost:8000/agents/fast-assistant/run",
+      json={
+          "messages": [
+              {"role": "user", "content": "What is 2+2?"}
+          ]
+      }
+  )
+  print(response.json())
+  ```
+  
+  ```javascript JavaScript
+  const response = await fetch('http://localhost:8000/agents/fast-assistant/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      messages: [
+        { role: 'user', content: 'What is 2+2?' }
+      ]
+    })
+  });
+  
+  const data = await response.json();
+  console.log(data);
+  ```
+</CodeGroup>
+
+## Web UI
+
+Open your browser and navigate to `http://localhost:8000`:
+
+- **Chat Tab** — Interactive chat with any text agent
+- **Video Tab** — Generate videos with Veo or Wan models
+- **Dashboard Tab** — Real-time model availability status
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Learn about Agents"
+    icon="robot"
+    href="/concepts/agents"
+  >
+    Explore the 12 pre-configured agents
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Complete endpoint documentation
+  </Card>
+  <Card
+    title="Task Context"
+    icon="share-nodes"
+    href="/concepts/task-context"
+  >
+    Share state between agents
+  </Card>
+  <Card
+    title="Pipelines"
+    icon="diagram-project"
+    href="/concepts/pipelines"
+  >
+    Chain agents together
+  </Card>
+</CardGroup>

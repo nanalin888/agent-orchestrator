@@ -75,8 +75,10 @@ The service includes a built-in web dashboard at `http://localhost:8000` with a 
 - **Streaming built-in** — SSE streaming for real-time responses
 - **Music generation** — generate songs and clips via Google Lyria 3
 - **Video generation** — create videos with Veo 3.1, Wan 2.6, and more
+- **Task context sharing** — agents share state during collaborative tasks
 - **Agent pipelines** — chain agents together (e.g. video-creator → video generation)
 - **MCP server** — built-in Model Context Protocol endpoint at `/mcp`
+- **Mintlify docs** — comprehensive documentation for AI agents to read
 - **Web UI included** — chat interface, video generation tab, and model availability dashboard
 - **Zero cost to start** — ships with 8 free text agents (music + video require credits)
 
@@ -259,6 +261,41 @@ curl localhost:8000/videos/abc123
 ```
 
 The generated MP4 is available at the returned `video_url`.
+
+### Task Context (Multi-Agent Collaboration)
+
+Enable agents to share knowledge during collaborative tasks:
+
+```bash
+# 1. Initialize task workspace
+POST /tasks/security-audit-2026-04-05/context/init
+
+# 2. Run code-reviewer with task context
+POST /agents/code-reviewer/run
+{
+  "task_id": "security-audit-2026-04-05",
+  "messages": [{"role": "user", "content": "Review auth/*.py for vulnerabilities"}]
+}
+
+# 3. Code-reviewer appends findings
+POST /tasks/security-audit-2026-04-05/context/append
+{
+  "agent_id": "code-reviewer",
+  "entry": "Found SQL injection in user_query() at line 45"
+}
+
+# 4. Run security-fixer (different model!) with shared context
+POST /agents/reasoning-analyst/run
+{
+  "task_id": "security-audit-2026-04-05",  # Automatically sees code-reviewer's findings
+  "messages": [{"role": "user", "content": "Fix vulnerabilities in context"}]
+}
+
+# 5. Read full context
+GET /tasks/security-audit-2026-04-05/context
+```
+
+**Use case:** Coordinate specialized models via meta-agent (e.g., Claude Code). Use Qwen for code review, Nemotron for analysis, Claude for fixes — all sharing the same task state.
 
 ### Video pipeline (video-creator → video)
 
@@ -447,10 +484,26 @@ agent-orchestrator/
 │   ├── video_client.py          # OpenRouter video alpha API client
 │   ├── mcp_server.py            # MCP server for Claude Code integration
 │   └── settings.py              # Environment configuration
+├── docs/                        # Mintlify documentation
+│   ├── introduction.mdx         # Getting started guide
+│   ├── quickstart.mdx           # Installation steps
+│   └── concepts/                # Core concepts (agents, pipelines, task context)
 ├── generated_audio/             # Generated MP3 files (gitignored)
 ├── generated_video/             # Generated MP4 files (gitignored)
+├── mint.json                    # Mintlify configuration
 ├── .env.example                 # Environment template
 └── pyproject.toml               # Project metadata + dependencies
+```
+
+## Documentation
+
+Comprehensive documentation is available at the Mintlify docs site. AI agents can access the docs via the Mintlify MCP server.
+
+To preview docs locally:
+
+```bash
+npm i -g mintlify
+mintlify dev
 ```
 
 ## License

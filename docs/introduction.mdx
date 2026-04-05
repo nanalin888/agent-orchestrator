@@ -1,0 +1,84 @@
+---
+title: Introduction
+description: 'A lightweight Python service for multi-model AI agent orchestration via OpenRouter'
+---
+
+# Agent Orchestrator
+
+Agent Orchestrator is a FastAPI service that exposes multiple specialized AI agents through a unified REST API. Each agent is bound to a specific LLM model via [OpenRouter](https://openrouter.ai), enabling cost-optimized multi-model execution with shared task context.
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running in 5 minutes
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference/introduction"
+  >
+    Complete API documentation
+  </Card>
+  <Card
+    title="Agents"
+    icon="robot"
+    href="/concepts/agents"
+  >
+    Learn about agent types and capabilities
+  </Card>
+  <Card
+    title="GitHub"
+    icon="github"
+    href="https://github.com/nanalin888/agent-orchestrator"
+  >
+    View source code and contribute
+  </Card>
+</CardGroup>
+
+## Features
+
+- **Multi-model execution** — 12 specialized agents across text, music, and video generation
+- **Agent pipelines** — Chain agents together (e.g., songwriter → music generation)
+- **Task context sharing** — Agents can share state during collaborative tasks
+- **MCP server** — Built-in Model Context Protocol endpoint
+- **Web UI** — Chat interface, video generation tab, and health dashboard
+- **Cost optimized** — Mix free and paid models based on requirements
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Multi-agent task coordination">
+    Use Claude Code as a meta-agent to coordinate specialized models. Code review with Qwen, reasoning with Nemotron, fixes with Claude.
+  </Accordion>
+  <Accordion title="Creative content pipelines">
+    Generate song lyrics with a text agent, then turn them into music with Lyria. Or refine video prompts before generation.
+  </Accordion>
+  <Accordion title="Cost-optimized inference">
+    Route tasks to the most cost-effective model. Use free models for simple tasks, paid models only when needed.
+  </Accordion>
+  <Accordion title="Model evaluation">
+    Compare outputs from different models (Claude vs GPT vs Llama) for the same prompt.
+  </Accordion>
+</AccordionGroup>
+
+## Architecture
+
+```
+Client (Browser, Claude Code, MCP)
+    ↓
+Agent Orchestrator API
+    ├─ 8 Text Agents (code, reasoning, writing)
+    ├─ 2 Music Agents (Lyria Pro, Clip)
+    └─ 2 Video Agents (Veo 3.1, Wan 2.6)
+    ↓
+OpenRouter (unified gateway)
+    ↓
+Multiple LLM Providers
+```
+
+<Note>
+  **Ready to get started?** Continue to [Quick Start](/quickstart) to install and run your first agent.
+</Note>

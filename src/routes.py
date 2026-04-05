@@ -1,3 +1,4 @@
+import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -12,6 +13,7 @@ from src.models import (
     RunRequest, RunResponse, SongPipelineRequest, SongPipelineResponse, Usage,
     VideoGenRequest, VideoGenResponse, VideoStatusResponse,
     VideoPipelineRequest, VideoPipelineResponse,
+    TaskContextInit, ContextEntry, TaskContextResponse,
 )
 
 router = APIRouter()
@@ -39,6 +41,13 @@ class VideoJob:
 
 
 video_jobs: dict[str, VideoJob] = {}
+
+
+# Task context storage
+from pathlib import Path
+
+TASK_CONTEXT_DIR = Path.home() / ".agent-orchestrator" / "tasks"
+TASK_CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @router.get("/health")
@@ -115,10 +124,25 @@ async def run_agent(agent_id: str, req: RunRequest, request: Request):
 
     client = request.app.state.openrouter_client
 
-    if req.stream:
-        return EventSourceResponse(client.stream(agent, req.messages))
+    # Inject task context if task_id provided
+    messages = req.messages
+    if req.task_id:
+        task_dir = TASK_CONTEXT_DIR / req.task_id
+        context_file = task_dir / "context.md"
 
-    raw = await client.complete(agent, req.messages)
+        if context_file.exists():
+            context_content = context_file.read_text()
+            # Prepend context as system message
+            context_msg = Message(
+                role="system",
+                content=f"# Shared Task Context\n\nYou are collaborating with other agents on task '{req.task_id}'. Below is the shared context from previous agents:\n\n{context_content}\n\nUse this context to inform your response. After completing your work, append key findings to the task context via POST /tasks/{req.task_id}/context/append"
+            )
+            messages = [context_msg] + messages
+
+    if req.stream:
+        return EventSourceResponse(client.stream(agent, messages))
+
+    raw = await client.complete(agent, messages)
 
     choices = []
     for c in raw.get("choices", []):
@@ -396,4 +420,86 @@ async def video_pipeline(req: VideoPipelineRequest, request: Request):
         refined_prompt=refined_prompt if not req.skip_refinement else None,
         video_agent=req.video_agent,
         model=video_agent.model,
+    )
+
+
+# --- Task Context ---
+@router.post("/tasks/{task_id}/context/init", status_code=201)
+async def init_task_context(task_id: str):
+    """Initialize a shared workspace for a task."""
+    task_dir = TASK_CONTEXT_DIR / task_id
+    if task_dir.exists():
+        raise HTTPException(409, f"Task context '{task_id}' already exists")
+
+    task_dir.mkdir(parents=True)
+
+    # Create empty context file
+    context_file = task_dir / "context.md"
+    context_file.write_text(f"# Task Context: {task_id}\n\n")
+
+    # Create metadata
+    meta_file = task_dir / "meta.json"
+    meta = {
+        "task_id": task_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    meta_file.write_text(json.dumps(meta, indent=2))
+
+    return {"task_id": task_id, "status": "initialized"}
+
+
+@router.post("/tasks/{task_id}/context/append", status_code=200)
+async def append_task_context(task_id: str, entry: ContextEntry):
+    """Append an entry to the task context."""
+    task_dir = TASK_CONTEXT_DIR / task_id
+    if not task_dir.exists():
+        raise HTTPException(404, f"Task context '{task_id}' not found. Initialize it first with POST /tasks/{task_id}/context/init")
+
+    context_file = task_dir / "context.md"
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    # Append entry
+    with open(context_file, "a") as f:
+        f.write(f"\n## {timestamp} — {entry.agent_id}\n\n{entry.entry}\n")
+
+    # Update metadata
+    meta_file = task_dir / "meta.json"
+    if meta_file.exists():
+        meta = json.loads(meta_file.read_text())
+        meta["updated_at"] = timestamp
+        meta_file.write_text(json.dumps(meta, indent=2))
+
+    return {"task_id": task_id, "status": "appended"}
+
+
+@router.get("/tasks/{task_id}/context", response_model=TaskContextResponse)
+async def get_task_context(task_id: str):
+    """Read the full task context."""
+    task_dir = TASK_CONTEXT_DIR / task_id
+    if not task_dir.exists():
+        raise HTTPException(404, f"Task context '{task_id}' not found")
+
+    context_file = task_dir / "context.md"
+    meta_file = task_dir / "meta.json"
+
+    if not context_file.exists():
+        raise HTTPException(500, f"Task context file not found for '{task_id}'")
+
+    content = context_file.read_text()
+
+    # Load metadata
+    if meta_file.exists():
+        meta = json.loads(meta_file.read_text())
+        created_at = datetime.fromisoformat(meta["created_at"])
+        updated_at = datetime.fromisoformat(meta["updated_at"])
+    else:
+        # Fallback if meta doesn't exist
+        created_at = updated_at = datetime.now(timezone.utc)
+
+    return TaskContextResponse(
+        task_id=task_id,
+        content=content,
+        created_at=created_at,
+        updated_at=updated_at,
     )

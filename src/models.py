@@ -35,6 +35,7 @@ class Message(BaseModel):
 class RunRequest(BaseModel):
     messages: list[Message] = Field(min_length=1)
     stream: bool = False
+    task_id: str | None = None  # Optional task context to inject
 
 
 class Choice(BaseModel):
@@ -131,6 +132,22 @@ class VideoPipelineResponse(BaseModel):
     refined_prompt: str | None = None
     video_agent: str
     model: str
+
+
+class TaskContextInit(BaseModel):
+    task_id: str = Field(pattern=r"^[a-zA-Z0-9_-]+$")
+
+
+class ContextEntry(BaseModel):
+    agent_id: str
+    entry: str = Field(min_length=1)
+
+
+class TaskContextResponse(BaseModel):
+    task_id: str
+    content: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class HealthResult(BaseModel):

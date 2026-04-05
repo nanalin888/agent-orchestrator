@@ -1,0 +1,185 @@
+---
+title: Task Context
+description: 'Share state between agents during collaborative tasks'
+---
+
+# Task Context
+
+Task context enables multiple agents to share knowledge during a collaborative task. This is essential when using a meta-agent (like Claude Code) to coordinate specialized models.
+
+## Problem
+
+When orchestrating multiple agents to complete a task:
+
+```
+Meta-agent spawns:
+  Agent A (code-reviewer) → discovers vulnerabilities
+  Agent B (security-fixer) → needs to know what A found
+  Agent C (test-writer) → needs to know what B changed
+```
+
+Without shared context, each agent only sees its own messages. The meta-agent becomes a bottleneck, manually passing information between agents.
+
+## Solution
+
+Task context provides a **shared workspace** that all agents can read and write to:
+
+```
+┌─────────────────────────────────────┐
+│  Task: security-audit-2026-04-05    │
+├─────────────────────────────────────┤
+│  context.md                         │
+│    • Agent A: Found SQL injection   │
+│    • Agent B: Applied fix at line 45│
+│    • Agent C: Added test case       │
+└─────────────────────────────────────┘
+         ↑           ↑           ↑
+      Agent A     Agent B     Agent C
+```
+
+## Usage
+
+### 1. Initialize Task Context
+
+```bash
+POST /tasks/{task_id}/context/init
+```
+
+Creates a workspace for the task at `~/.agent-orchestrator/tasks/{task_id}/`
+
+### 2. Run Agent with Task Context
+
+```bash
+POST /agents/{agent_id}/run
+{
+  "task_id": "security-audit-2026-04-05",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Review auth/*.py for vulnerabilities"
+    }
+  ]
+}
+```
+
+The agent automatically receives:
+- All previous context from other agents
+- Injected as a system message before its prompt
+
+### 3. Append to Context
+
+Agents can append discoveries:
+
+```bash
+POST /tasks/{task_id}/context/append
+{
+  "agent_id": "code-reviewer",
+  "entry": "Found SQL injection in user_query() at line 45"
+}
+```
+
+### 4. Read Full Context
+
+```bash
+GET /tasks/{task_id}/context
+```
+
+Returns the complete timeline of agent discoveries and decisions.
+
+## Example: Security Audit
+
+```python
+# Meta-agent (Claude Code)
+task_id = "security-audit-2026-04-05"
+
+# 1. Initialize workspace
+POST /tasks/{task_id}/context/init
+
+# 2. Code review (Qwen model - free, code-specialized)
+response = POST /agents/code-reviewer/run
+{
+  "task_id": task_id,
+  "messages": [{"role": "user", "content": "Review auth/*.py"}]
+}
+
+# 3. Code-reviewer appends findings
+POST /tasks/{task_id}/context/append
+{
+  "agent_id": "code-reviewer",
+  "entry": "Found SQL injection in user_query() at line 45"
+}
+
+# 4. Security fix (Claude model - best for reasoning)
+response = POST /agents/reasoning-analyst/run
+{
+  "task_id": task_id,  # Automatically reads what code-reviewer found
+  "messages": [{"role": "user", "content": "Fix vulnerabilities in context"}]
+}
+
+# 5. Test generation (different model again)
+response = POST /agents/creative-writer/run
+{
+  "task_id": task_id,  # Sees all previous context
+  "messages": [{"role": "user", "content": "Write tests for the fixes"}]
+}
+```
+
+## File Structure
+
+Each task creates a directory:
+
+```
+~/.agent-orchestrator/
+  tasks/
+    security-audit-2026-04-05/
+      context.md         # Chronological log
+      meta.json          # Task metadata
+```
+
+**context.md** format:
+```markdown
+## 2026-04-05T10:30:00 — code-reviewer
+
+Found SQL injection in user_query() at line 45. The function directly
+concatenates user input into SQL query without parameterization.
+
+## 2026-04-05T10:32:00 — reasoning-analyst
+
+Applied fix: replaced string concatenation with parameterized query.
+Changed line 45 from `query = f"SELECT * FROM users WHERE id={user_id}"`
+to `query = "SELECT * FROM users WHERE id=?"` with parameter binding.
+```
+
+## Benefits
+
+✅ **Multi-model execution** — Use optimal model per specialization  
+✅ **Shared knowledge** — All agents see discoveries from previous agents  
+✅ **Decentralized** — No meta-agent bottleneck for information flow  
+✅ **Persistent** — Context survives across agent invocations  
+✅ **Debuggable** — Human-readable markdown files  
+
+## Integration with Mintlify MCP
+
+Combine task context (dynamic) with Mintlify MCP (static docs):
+
+```
+Agent reads:
+  1. Static knowledge from Mintlify
+     → "Security best practices"
+  2. Task context from shared workspace
+     → "What other agents discovered"
+  3. Current task prompt
+     → "What to do now"
+```
+
+This gives agents both organizational knowledge (docs) and task-specific state (context).
+
+## Cleanup
+
+Task directories persist until manually deleted. To clean up:
+
+```bash
+rm -rf ~/.agent-orchestrator/tasks/{task_id}
+```
+
+Or implement automatic cleanup after task completion.
